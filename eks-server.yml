@@ -1,0 +1,226 @@
+Description: >
+    Akaua
+    This template deploys a server with EKS and Jenkins configured
+
+Parameters:
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+    KeyName:
+        Description: The EC2 Key Pair to allow SSH access to the instances
+        Type: AWS::EC2::KeyPair::KeyName
+    AwsAccessKeyId: 
+        Description: aws_access_key_id for use eksctl
+        Type: String
+    AwsSecretAccessKey: 
+        Description: aws_secret_access_key for use eksctl
+        Type: String
+    InstanceType:
+      Description: EC2 instance type
+      Type: String
+      Default: t2.small
+      AllowedValues:
+        - t2.micro
+        - t2.small
+        - t2.medium
+        - t2.large
+        - m3.medium
+        - m3.large
+        - m3.xlarge
+        - m3.2xlarge
+        - m4.large
+        - m4.xlarge
+        - m4.2xlarge
+        - m4.4xlarge
+        - m4.10xlarge
+        - c4.large
+        - c4.xlarge
+        - c4.2xlarge
+        - c4.4xlarge
+        - c4.8xlarge
+        - c3.large
+        - c3.xlarge
+        - c3.2xlarge
+        - c3.4xlarge
+        - c3.8xlarge
+        - r3.large
+        - r3.xlarge
+        - r3.2xlarge
+        - r3.4xlarge
+        - r3.8xlarge
+        - i2.xlarge
+        - i2.2xlarge
+        - i2.4xlarge
+        - i2.8xlarge
+      ConstraintDescription: Please choose a valid instance type.
+    ClusterName:
+        Description: Name of cluster EKS
+        Type: String
+        Default: production
+    ClusterVersion:
+        Description: Cluster EKS version
+        Type: String
+        Default: 1.13
+    ClusterNodes:
+        Description: Cluster start nodes
+        Type: String
+        Default: 3
+    ClusterMinNodes:
+        Description: Cluster minimum nodes
+        Type: String
+        Default: 1
+    ClusterMaxNodes:
+        Description: Cluster maximum nodes
+        Type: String
+        Default: 4      
+    InstanceTypeWorkers:
+      Description: EC2 instance type to Workers
+      Type: String
+      Default: t2.small
+      AllowedValues:
+        - t2.micro
+        - t2.small
+        - t2.medium
+        - t2.large
+        - m3.medium
+        - m3.large
+        - m3.xlarge
+        - m3.2xlarge
+        - m4.large
+        - m4.xlarge
+        - m4.2xlarge
+        - m4.4xlarge
+        - m4.10xlarge
+        - c4.large
+        - c4.xlarge
+        - c4.2xlarge
+        - c4.4xlarge
+        - c4.8xlarge
+        - c3.large
+        - c3.xlarge
+        - c3.2xlarge
+        - c3.4xlarge
+        - c3.8xlarge
+        - r3.large
+        - r3.xlarge
+        - r3.2xlarge
+        - r3.4xlarge
+        - r3.8xlarge
+        - i2.xlarge
+        - i2.2xlarge
+        - i2.4xlarge
+        - i2.8xlarge
+      ConstraintDescription: Please choose a valid instance type.
+
+
+Mappings:
+  AWSRegionToAMI:
+    us-east-1:
+      AMIID: ami-eca289fb
+    us-east-2:
+      AMIID: ami-446f3521
+    us-west-1:
+      AMIID: ami-9fadf8ff
+    us-west-2:
+      AMIID: ami-08d489468314a58df
+      # ami-06f2f779464715dc5
+      # ami-084799b9fb64c149e 
+      # ami-00430184c7bb49914
+      # Original
+      # ami-005bdb005fb00e791
+      # Amazon image
+      # ami-08d489468314a58df
+    eu-west-1:
+      AMIID: ami-a1491ad2
+    eu-central-1:
+      AMIID: ami-54f5303b
+    ap-northeast-1:
+      AMIID: ami-9cd57ffd
+    ap-southeast-1:
+      AMIID: ami-a900a3ca
+    ap-southeast-2:
+      AMIID: ami-5781be34
+
+Resources:
+  EKSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow 8080 to jenkins and ssh conection to webserver
+        VpcId:
+          Fn::ImportValue:
+            !Sub "${EnvironmentName}-VPCID"
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  EKSInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref KeyName
+      UserData:
+        'Fn::Base64': !Sub |
+          #!/bin/bash
+          yum update -y 
+          curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/bin/kubectl
+          mkdir ~/.aws  
+          echo "[default]" >> ~/.aws/config
+          echo "output = json" >> ~/.aws/config
+          echo "region = ${AWS::Region}" >> ~/.aws/config
+          echo "[default]" >> ~/.aws/credentials
+          echo "aws_access_key_id = ${AwsAccessKeyId}" >> ~/.aws/credentials
+          echo "aws_secret_access_key = ${AwsSecretAccessKey}" >> ~/.aws/credentials
+          curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/latest_release/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+          sudo mv /tmp/eksctl /usr/bin
+          curl -o aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.13.8/2019-08-14/bin/linux/amd64/aws-iam-authenticator
+          openssl sha1 -sha256 aws-iam-authenticator
+          chmod +x ./aws-iam-authenticator
+          mkdir -p $HOME/bin && cp ./aws-iam-authenticator $HOME/bin/aws-iam-authenticator && export PATH=$HOME/bin:$PATH
+          echo 'export PATH=$HOME/bin:$PATH' >> ~/.bashrc
+          # Install JQ
+          yum install -y jq
+          # Install Jenkins
+          yum install java-1.8.0-openjdk.x86_64 -y
+          echo 'export JAVA_HOME=/usr/lib/jvm/jre-1.8.0-openjdk' >> ~/.bashrc
+          source ~/.bashrc
+          sudo yum remove java-1.7.0 -y
+          curl --silent --location http://pkg.jenkins-ci.org/redhat-stable/jenkins.repo | sudo tee /etc/yum.repos.d/jenkins.repo
+          sudo rpm --import https://jenkins-ci.org/redhat/jenkins-ci.org.key
+          yum install -y jenkins
+          service jenkins start 
+          # Up cluster EKS
+          # sudo eksctl create cluster --name ${ClusterName} --version ${ClusterVersion} --nodegroup-name ${ClusterName}-workers --node-type ${InstanceTypeWorkers} --nodes ${ClusterNodes} --nodes-min ${ClusterMinNodes} --nodes-max ${ClusterMaxNodes} --node-ami auto
+          
+
+      BlockDeviceMappings:
+        - DeviceName: "/dev/sdk"
+          Ebs:
+            VolumeSize: "25"
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-eks-jenkins
+      ImageId: !FindInMap 
+        - AWSRegionToAMI
+        - !Ref 'AWS::Region'
+        - AMIID
+      InstanceType: !Ref InstanceType
+      SubnetId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-PUB1-SN"
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      SecurityGroupIds:
+        - Ref: EKSSecurityGroup
+
+
