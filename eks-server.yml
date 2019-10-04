@@ -196,6 +196,8 @@ Resources:
           # Install Docker
           yum install -y docker
           service docker start
+          # Install ansible
+          pip install ansible
           # Install Jenkins
           yum install java-1.8.0-openjdk.x86_64 -y
           echo 'export JAVA_HOME=/usr/lib/jvm/jre-1.8.0-openjdk' >> ~/.bashrc
@@ -207,8 +209,11 @@ Resources:
           sed -i 's/JENKINS_USER=\"jenkins\"/JENKINS_USER=\"root\"/g' /etc/sysconfig/jenkins
           service jenkins start 
           # Up cluster EKS
-          # sudo eksctl create cluster --name ${ClusterName} --version ${ClusterVersion} --nodegroup-name ${ClusterName}-workers --node-type ${InstanceTypeWorkers} --nodes ${ClusterNodes} --nodes-min ${ClusterMinNodes} --nodes-max ${ClusterMaxNodes} --node-ami auto
-          
+          sudo eksctl create cluster --name ${ClusterName} --version ${ClusterVersion} --nodegroup-name ${ClusterName}-workers --node-type ${InstanceTypeWorkers} --nodes ${ClusterNodes} --nodes-min ${ClusterMinNodes} --nodes-max ${ClusterMaxNodes} --node-ami auto
+          # My Custom Image of Example
+          kubectl run predict-app --image=akaua/predict_app --port=80
+          kubectl expose deployment predict-app --type=LoadBalancer --port 80 --target-port 80
+          kubectl scale deployment predict-app --replicas=3
 
       BlockDeviceMappings:
         - DeviceName: "/dev/sdk"
