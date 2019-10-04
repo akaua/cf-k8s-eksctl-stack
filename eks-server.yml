@@ -191,6 +191,11 @@ Resources:
           echo 'export PATH=$HOME/bin:$PATH' >> ~/.bashrc
           # Install JQ
           yum install -y jq
+          # Install Git
+          yum install -y git-all
+          # Install Docker
+          yum install -y docker
+          service docker start
           # Install Jenkins
           yum install java-1.8.0-openjdk.x86_64 -y
           echo 'export JAVA_HOME=/usr/lib/jvm/jre-1.8.0-openjdk' >> ~/.bashrc
@@ -199,6 +204,7 @@ Resources:
           curl --silent --location http://pkg.jenkins-ci.org/redhat-stable/jenkins.repo | sudo tee /etc/yum.repos.d/jenkins.repo
           sudo rpm --import https://jenkins-ci.org/redhat/jenkins-ci.org.key
           yum install -y jenkins
+          sed -i 's/JENKINS_USER=\"jenkins\"/JENKINS_USER=\"root\"/g' /etc/sysconfig/jenkins
           service jenkins start 
           # Up cluster EKS
           # sudo eksctl create cluster --name ${ClusterName} --version ${ClusterVersion} --nodegroup-name ${ClusterName}-workers --node-type ${InstanceTypeWorkers} --nodes ${ClusterNodes} --nodes-min ${ClusterMinNodes} --nodes-max ${ClusterMaxNodes} --node-ami auto
